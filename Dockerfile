@@ -1,30 +1,43 @@
-FROM ubuntu:focal
+FROM ubuntu:noble
 
-ENV HOME /root
-ENV DEBIAN_FRONTEND noninteractive
-ENV LC_ALL C.UTF-8
-ENV LANG en_US.UTF-8
-ENV LANGUAGE en_US.UTF-8
+ENV HOME=/root
+ENV LC_ALL=C.UTF-8
+ENV LANG=en_US.UTF-8
+ENV LANGUAGE=en_US.UTF-8
 
-RUN dpkg --add-architecture i386 && \
-    apt-get update && apt-get -y install python3 python-is-python3 xvfb x11vnc xdotool wget tar supervisor net-tools fluxbox gnupg2 && \
-    echo 'echo -n $HOSTNAME' > /root/x11vnc_password.sh && chmod +x /root/x11vnc_password.sh && \
-    wget -O - https://dl.winehq.org/wine-builds/winehq.key | apt-key add - && \
-    echo 'deb https://dl.winehq.org/wine-builds/ubuntu/ focal main' | tee /etc/apt/sources.list.d/winehq.list && \
-    apt-get update && apt-get -y install winehq-stable=7.0.1~focal-1 && \
-    mkdir /opt/wine-stable/share/wine/mono && wget -O - https://dl.winehq.org/wine/wine-mono/7.0.0/wine-mono-7.0.0-x86.tar.xz | tar -xJv -C /opt/wine-stable/share/wine/mono && \
-    mkdir /opt/wine-stable/share/wine/gecko && wget -O /opt/wine-stable/share/wine/gecko/wine-gecko-2.47.2-x86.msi https://dl.winehq.org/wine/wine-gecko/2.47.2/wine-gecko-2.47.2-x86.msi && wget -O /opt/wine-stable/share/wine/gecko/wine-gecko-2.47.2-x86_64.msi https://dl.winehq.org/wine/wine-gecko/2.47.2/wine-gecko-2.47.2-x86_64.msi && \
-    apt-get -y full-upgrade && apt-get clean && rm -rf /var/lib/apt/lists/*
-ADD supervisord.conf /etc/supervisor/conf.d/supervisord.conf
-ADD supervisord-wine.conf /etc/supervisor/conf.d/supervisord-wine.conf
+SHELL ["/bin/bash", "-euxo", "pipefail", "-c"]
 
-ENV WINEPREFIX /root/prefix32
-ENV WINEARCH win32
-ENV DISPLAY :0
+RUN apt-get update; \
+    DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y \
+        python3 python-is-python3 xvfb x11vnc novnc websockify xdotool wget tar xz-utils supervisor net-tools fluxbox gnupg2 ca-certificates; \
+    rm -rf /var/lib/apt/lists/*
 
-WORKDIR /root/
-RUN wget -O - https://github.com/novnc/noVNC/archive/v1.3.0.tar.gz | tar -xzv -C /root/ && mv /root/noVNC-1.3.0 /root/novnc && ln -s /root/novnc/vnc_lite.html /root/novnc/index.html && \
-    wget -O - https://github.com/novnc/websockify/archive/v0.11.0.tar.gz | tar -xzv -C /root/ && mv /root/websockify-0.11.0 /root/novnc/utils/websockify
+RUN dpkg --add-architecture i386; \
+    mkdir -p /etc/apt/keyrings; \
+    wget -q -O - https://dl.winehq.org/wine-builds/winehq.key | gpg --dearmor -o /etc/apt/keyrings/winehq-archive.key -; \
+    wget -q -O /etc/apt/sources.list.d/winehq-noble.sources https://dl.winehq.org/wine-builds/ubuntu/dists/noble/winehq-noble.sources; \
+    apt-get update; \
+    DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y \
+        winehq-stable=10.0.0.0~noble-1; \
+    rm -rf /var/lib/apt/lists/*
+
+ENV WINEPREFIX=/root/prefix32
+ENV WINEARCH=win32
+ENV DISPLAY=:0
+
+RUN mkdir -p /opt/wine/mono; \
+    wget -q -O - https://dl.winehq.org/wine/wine-mono/9.4.0/wine-mono-9.4.0-x86.tar.xz \
+        | tar -xJ -C /opt/wine/mono; \
+    mkdir -p /opt/wine/gecko; \
+    wget -q -O - https://dl.winehq.org/wine/wine-gecko/2.47.4/wine-gecko-2.47.4-x86.tar.xz \
+        | tar -xJ -C /opt/wine/gecko; \
+    wget -q -O - https://dl.winehq.org/wine/wine-gecko/2.47.4/wine-gecko-2.47.4-x86_64.tar.xz \
+        | tar -xJ -C /opt/wine/gecko
+
+COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+COPY supervisord-wine.conf /etc/supervisor/conf.d/supervisord-wine.conf
+
+COPY index.html /usr/share/novnc/index.html
 
 EXPOSE 8080
 
