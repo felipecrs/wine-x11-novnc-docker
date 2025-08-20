@@ -1,38 +1,39 @@
-FROM ubuntu:noble
+ARG UBUNTU_CODENAME="noble"
+FROM ubuntu:${UBUNTU_CODENAME}
 
-ENV HOME=/root
-ENV LC_ALL=C.UTF-8
-ENV LANG=en_US.UTF-8
-ENV LANGUAGE=en_US.UTF-8
+ENV HOME="/root"
+ENV LC_ALL="C.UTF-8"
+ENV LANG="en_US.UTF-8"
+ENV LANGUAGE="en_US.UTF-8"
 
 SHELL ["/bin/bash", "-euxo", "pipefail", "-c"]
 
 RUN apt-get update; \
     DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y \
-        python3 python-is-python3 xvfb x11vnc novnc websockify xdotool wget tar xz-utils supervisor net-tools fluxbox gnupg2 ca-certificates; \
+        python3 python-is-python3 xvfb x11vnc novnc websockify xdotool curl wget tar xz-utils supervisor net-tools fluxbox gpg ca-certificates locales winetricks zenity cabextract terminator; \
+    locale-gen; \
     rm -rf /var/lib/apt/lists/*
 
+ARG WINE_BRANCH="staging"
+ARG WINE_VERSION="10.13"
+ARG UBUNTU_CODENAME
 RUN dpkg --add-architecture i386; \
     mkdir -p /etc/apt/keyrings; \
     wget -q -O - https://dl.winehq.org/wine-builds/winehq.key | gpg --dearmor -o /etc/apt/keyrings/winehq-archive.key -; \
-    wget -q -O /etc/apt/sources.list.d/winehq-noble.sources https://dl.winehq.org/wine-builds/ubuntu/dists/noble/winehq-noble.sources; \
+    wget -q -O "/etc/apt/sources.list.d/winehq-${UBUNTU_CODENAME}.sources" "https://dl.winehq.org/wine-builds/ubuntu/dists/${UBUNTU_CODENAME}/winehq-${UBUNTU_CODENAME}.sources"; \
     apt-get update; \
     DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y \
-        winehq-stable=10.0.0.0~noble-1; \
+        "winehq-${WINE_BRANCH}=${WINE_VERSION}~*"; \
     rm -rf /var/lib/apt/lists/*
 
-ENV WINEPREFIX=/root/prefix32
-ENV WINEARCH=win32
-ENV DISPLAY=:0
+ENV WINE_HOME="/opt/wine-${WINE_BRANCH}"
+ENV WINEPREFIX="/root/prefix32"
+ENV WINEARCH="win32"
+ENV DISPLAY=":0"
 
-RUN mkdir -p /opt/wine/mono; \
-    wget -q -O - https://dl.winehq.org/wine/wine-mono/9.4.0/wine-mono-9.4.0-x86.tar.xz \
-        | tar -xJ -C /opt/wine/mono; \
-    mkdir -p /opt/wine/gecko; \
-    wget -q -O - https://dl.winehq.org/wine/wine-gecko/2.47.4/wine-gecko-2.47.4-x86.tar.xz \
-        | tar -xJ -C /opt/wine/gecko; \
-    wget -q -O - https://dl.winehq.org/wine/wine-gecko/2.47.4/wine-gecko-2.47.4-x86_64.tar.xz \
-        | tar -xJ -C /opt/wine/gecko
+ARG DOCKER_WINE_VERSION="6284e6ab06aef285263d1f77a5b1554afb1e83d9"
+RUN wget -q -O- "https://raw.githubusercontent.com/scottyhardy/docker-wine/${DOCKER_WINE_VERSION}/download_gecko_and_mono.sh" \
+    | bash -s -- "${WINE_VERSION}"
 
 COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 COPY supervisord-wine.conf /etc/supervisor/conf.d/supervisord-wine.conf
